@@ -444,6 +444,8 @@ function Library:CreateWindow(Settings)
 
     function Window:AddTab(TabConfig)
         local Tab = {}
+        Tab.ItemCount = 0 -- 核心修复：用于严格控制所有组件的排序
+        
         local TabBtn = Instance.new("TextButton")
         TabBtn.Size = UDim2.fromOffset(100, 40)
         TabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
@@ -479,6 +481,7 @@ function Library:CreateWindow(Settings)
 
         local PageLayout = Instance.new("UIListLayout")
         PageLayout.Padding = UDim.new(0, 8)
+        PageLayout.SortOrder = Enum.SortOrder.LayoutOrder -- 核心修复：确保依据 LayoutOrder 排列
         PageLayout.Parent = Page
 
         PageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
@@ -509,7 +512,9 @@ function Library:CreateWindow(Settings)
         table.insert(Window.Tabs, Tab)
 
         function Tab:AddTitle(TitleText)
+            Tab.ItemCount = Tab.ItemCount + 1
             local Element = Instance.new("TextLabel")
+            Element.LayoutOrder = Tab.ItemCount
             Element.Size = UDim2.new(1, 0, 0, 40)
             Element.BackgroundTransparency = 1
             Element.Text = " " .. TitleText
@@ -521,8 +526,10 @@ function Library:CreateWindow(Settings)
         end
 
         function Tab:AddToggle(TogConfig)
+            Tab.ItemCount = Tab.ItemCount + 1
             local ToggleVal = TogConfig.Default or false
             local Element = Instance.new("TextButton")
+            Element.LayoutOrder = Tab.ItemCount
             Element.Size = UDim2.new(1, 0, 0, 50) 
             Element.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
             Element.BackgroundTransparency = 0.6
@@ -557,11 +564,13 @@ function Library:CreateWindow(Settings)
         end
 
         function Tab:AddSlider(SliConfig)
+            Tab.ItemCount = Tab.ItemCount + 1
             local Min = SliConfig.Min or 0
             local Max = SliConfig.Max or 100
             local Current = SliConfig.Default or Min
 
             local Element = Instance.new("Frame")
+            Element.LayoutOrder = Tab.ItemCount
             Element.Size = UDim2.new(1, 0, 0, 50) 
             Element.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
             Element.BackgroundTransparency = 0.6
@@ -623,9 +632,11 @@ function Library:CreateWindow(Settings)
         end
 
         function Tab:AddColorpicker(ColConfig)
+            Tab.ItemCount = Tab.ItemCount + 1
             local CurrentColor = ColConfig.Default or Color3.fromRGB(255, 255, 255)
 
             local Element = Instance.new("Frame")
+            Element.LayoutOrder = Tab.ItemCount
             Element.Size = UDim2.new(1, 0, 0, 50) 
             Element.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
             Element.BackgroundTransparency = 0.6
@@ -664,11 +675,138 @@ function Library:CreateWindow(Settings)
             end)
         end
 
+        -- 新增：下拉列表模块
+        function Tab:AddDropdown(DropConfig)
+            Tab.ItemCount = Tab.ItemCount + 1
+            local Options = DropConfig.Options or {}
+            local Current = DropConfig.Default or Options[1] or ""
+            local IsDropped = false
+            
+            local ItemHeight = 30
+            local MaxItems = 4
+            local VisibleItems = math.min(#Options, MaxItems)
+            local ExpandedHeight = 50 + (VisibleItems * ItemHeight) + 10 -- 50是基础高度，加10是底边距
+
+            local Element = Instance.new("Frame")
+            Element.LayoutOrder = Tab.ItemCount
+            Element.Size = UDim2.new(1, 0, 0, 50)
+            Element.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            Element.BackgroundTransparency = 0.6
+            Element.ClipsDescendants = true
+            Element.Parent = Page
+            Instance.new("UICorner", Element).CornerRadius = UDim.new(0, 8)
+
+            local Title = Instance.new("TextLabel")
+            Title.Size = UDim2.new(0.55, 0, 0, 50) 
+            Title.Position = UDim2.new(0, 15, 0, 0)
+            Title.BackgroundTransparency = 1
+            Title.Text = DropConfig.Title or "Dropdown"
+            Title.TextColor3 = Config.Typography.TextColor
+            Title.TextSize = Config.Typography.GlobalTextSize
+            Title.Font = Config.Typography.FontType
+            Title.TextXAlignment = Enum.TextXAlignment.Left
+            Title.Parent = Element
+
+            local DropBtn = Instance.new("TextButton")
+            DropBtn.Size = UDim2.new(0.4, 0, 0, 34) 
+            DropBtn.Position = UDim2.new(1, -10, 0, 8)
+            DropBtn.AnchorPoint = Vector2.new(1, 0)
+            DropBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            DropBtn.Text = Current
+            DropBtn.TextColor3 = Config.Typography.TextColor
+            DropBtn.TextSize = 13
+            DropBtn.Font = Config.Typography.FontType
+            DropBtn.Parent = Element
+            Instance.new("UICorner", DropBtn).CornerRadius = UDim.new(0, 6)
+
+            local ScrollFrame = Instance.new("ScrollingFrame")
+            ScrollFrame.Size = UDim2.new(0.4, 0, 1, -60)
+            ScrollFrame.Position = UDim2.new(1, -10, 0, 50)
+            ScrollFrame.AnchorPoint = Vector2.new(1, 0)
+            ScrollFrame.BackgroundTransparency = 1
+            ScrollFrame.ScrollBarThickness = 2
+            ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, #Options * ItemHeight)
+            ScrollFrame.Parent = Element
+
+            local ScrollLayout = Instance.new("UIListLayout")
+            ScrollLayout.Padding = UDim.new(0, 0)
+            ScrollLayout.Parent = ScrollFrame
+
+            for _, opt in pairs(Options) do
+                local OptBtn = Instance.new("TextButton")
+                OptBtn.Size = UDim2.new(1, 0, 0, ItemHeight)
+                OptBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                OptBtn.BackgroundTransparency = 0.5
+                OptBtn.Text = opt
+                OptBtn.TextColor3 = Config.Typography.TextColor
+                OptBtn.TextSize = 12
+                OptBtn.Font = Config.Typography.FontType
+                OptBtn.Parent = ScrollFrame
+
+                OptBtn.MouseButton1Click:Connect(function()
+                    Current = opt
+                    DropBtn.Text = Current
+                    if DropConfig.Callback then DropConfig.Callback(Current) end
+                    
+                    IsDropped = false
+                    TweenService:Create(Element, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, 50)}):Play()
+                end)
+            end
+
+            DropBtn.MouseButton1Click:Connect(function()
+                IsDropped = not IsDropped
+                local TargetHeight = IsDropped and ExpandedHeight or 50
+                TweenService:Create(Element, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, TargetHeight)}):Play()
+            end)
+        end
+
+        -- 新增：输入框模块
+        function Tab:AddTextbox(BoxConfig)
+            Tab.ItemCount = Tab.ItemCount + 1
+            local Element = Instance.new("Frame")
+            Element.LayoutOrder = Tab.ItemCount
+            Element.Size = UDim2.new(1, 0, 0, 50) 
+            Element.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            Element.BackgroundTransparency = 0.6
+            Element.Parent = Page
+            Instance.new("UICorner", Element).CornerRadius = UDim.new(0, 8)
+
+            local Title = Instance.new("TextLabel")
+            Title.Size = UDim2.new(0.55, 0, 1, 0)
+            Title.Position = UDim2.new(0, 15, 0, 0)
+            Title.BackgroundTransparency = 1
+            Title.Text = BoxConfig.Title or "Textbox"
+            Title.TextColor3 = Config.Typography.TextColor
+            Title.TextSize = Config.Typography.GlobalTextSize
+            Title.Font = Config.Typography.FontType
+            Title.TextXAlignment = Enum.TextXAlignment.Left
+            Title.Parent = Element
+
+            local InputBox = Instance.new("TextBox")
+            InputBox.Size = UDim2.new(0.4, 0, 0, 34) 
+            InputBox.Position = UDim2.new(1, -10, 0.5, 0)
+            InputBox.AnchorPoint = Vector2.new(1, 0.5)
+            InputBox.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            InputBox.Text = BoxConfig.Default or ""
+            InputBox.PlaceholderText = BoxConfig.Placeholder or "点击输入..."
+            InputBox.TextColor3 = Config.Typography.TextColor
+            InputBox.TextSize = 13
+            InputBox.Font = Config.Typography.FontType
+            InputBox.ClearTextOnFocus = false
+            InputBox.Parent = Element
+            Instance.new("UICorner", InputBox).CornerRadius = UDim.new(0, 6)
+
+            InputBox.FocusLost:Connect(function(enterPressed)
+                if BoxConfig.Callback then
+                    BoxConfig.Callback(InputBox.Text, enterPressed)
+                end
+            end)
+        end
+
         return Tab
     end
 
     return Window
 end
 
--- 必须有 return，将核心引擎表暴露出去
 return Library
